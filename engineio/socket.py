@@ -20,6 +20,7 @@ class Socket(object):
         self.upgraded = False
         self.closing = False
         self.closed = False
+        self.writer_exited = False
 
     def create_queue(self):
         return getattr(self.server._async['queue'],
@@ -176,14 +177,17 @@ class Socket(object):
                 try:
                     packets = self.poll()
                 except exceptions.QueueEmpty:
+                    self.writer_exited = True
                     break
                 if not packets:
                     # empty packet list returned -> connection closed
+                    self.writer_exited = True
                     break
                 try:
                     for pkt in packets:
                         ws.send(pkt.encode(always_bytes=False))
                 except:
+                    self.writer_exited = True
                     break
         writer_task = self.server.start_background_task(writer)
 
@@ -221,7 +225,8 @@ class Socket(object):
                 self.server.logger.exception('Unknown receive error')
                 break
 
-        self.queue.put(None)  # unlock the writer task so that it can exit
+        if not self.writer_exited:
+            self.queue.put(None)  # unlock the writer task so that it can exit
         writer_task.join()
         self.close(wait=True, abort=True)
 

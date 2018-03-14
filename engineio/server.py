@@ -384,7 +384,7 @@ class Server(object):
             headers = None
             if self.cookie:
                 headers = [('Set-Cookie', self.cookie + '=' + sid)]
-            return self._ok(s.poll(), headers=headers, b64=b64)
+            return self._ok(s.poll(timeout=self.ping_timeout), headers=headers, b64=b64)
 
     def _upgrades(self, sid, transport):
         """Return the list of possible upgrades for a client connection."""

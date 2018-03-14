@@ -25,10 +25,10 @@ class Socket(object):
         return getattr(self.server._async['queue'],
                        self.server._async['queue_class'])()
 
-    def poll(self):
+    def poll(self, timeout=None):
         """Wait for packets to send to the client."""
         try:
-            packets = [self.queue.get(timeout=self.server.ping_timeout)]
+            packets = [self.queue.get(timeout=timeout)]
             self.queue.task_done()
         except self.server._async['queue'].Empty:
             raise exceptions.QueueEmpty()
@@ -90,7 +90,7 @@ class Socket(object):
             return getattr(self, '_upgrade_' + transport)(environ,
                                                           start_response)
         try:
-            packets = self.poll()
+            packets = self.poll(timeout=self.server.ping_timeout)
         except exceptions.QueueEmpty:
             exc = sys.exc_info()
             self.close(wait=False)
@@ -172,11 +172,9 @@ class Socket(object):
         # start separate writer thread
         def writer():
             while True:
-                packets = None
-                try:
-                    packets = self.poll()
-                except exceptions.QueueEmpty:
-                    break
+                # block on polling queue, main thread will put poison pill to end
+                # writer thread if timeout
+                packets = self.poll(timeout=None)  
                 if not packets:
                     # empty packet list returned -> connection closed
                     break
